@@ -58,6 +58,7 @@ function run(file, wasmBindings) {
     const cw = new Cloudworker(script, opts)
     cw.dispatch(req).then((res) => {
       console.log("Response Status: ", res.status)
+      console.log("Response Headers: ", res.headers)
       res.text().then((body) => {
         console.log("Response Body: ", body)
       })
