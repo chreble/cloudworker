@@ -9,7 +9,7 @@ const wasmLoader = require('../lib/wasm')
 
 let file = null
 
-function collect (val, memo) {
+function collect(val, memo) {
   memo.push(val)
   return memo
 }
@@ -24,6 +24,7 @@ program
   .option('-c, --enable-cache', 'Enables cache <BETA>', false)
   .option('-r, --watch', 'Watch the worker script and restart the worker when changes are detected', false)
   .option('-s, --set [variable.key=value]', '(Deprecated) Binds variable to a local implementation of Workers KV and sets key to value', collect, [])
+  .option('-u, --url [variable.key=value]', 'Sets requests to a different url', collect, [])
   .action(f => { file = f })
   .parse(process.argv)
 
@@ -40,7 +41,7 @@ wasmLoader.loadBindings(wasmBindings).then(res => {
   process.exit(1)
 })
 
-function run (file, wasmBindings) {
+function run(file, wasmBindings) {
   console.log('Starting up...')
   const fullpath = path.resolve(process.cwd(), file)
   const script = utils.read(fullpath)
@@ -50,9 +51,21 @@ function run (file, wasmBindings) {
   // Add a warning log for deprecation
   if (program.set.length > 0) console.warn('Warning: Flag --set is now deprecated, please use --kv-set instead')
 
-  const opts = {debug: program.debug, enableCache: program.enableCache, bindings: bindings}
-  let server = new Cloudworker(script, opts).listen(program.port)
+  const opts = { debug: program.debug, enableCache: program.enableCache, bindings: bindings }
 
+  if (program.url) {
+    const req = new Cloudworker.Request(program.url)
+    const cw = new Cloudworker(script, opts)
+    cw.dispatch(req).then((res) => {
+      console.log("Response Status: ", res.status)
+      res.text().then((body) => {
+        console.log("Response Body: ", body)
+      })
+    })
+    return
+  }
+
+  let server = new Cloudworker(script, opts).listen(program.port)
   console.log(`Listening on ${program.port}`)
 
   let stopping = false
@@ -74,7 +87,7 @@ function run (file, wasmBindings) {
     })
   }
 
-  function shutdown () {
+  function shutdown() {
     if (stopping) return
 
     stopping = true
@@ -84,7 +97,7 @@ function run (file, wasmBindings) {
     if (reloading) server.on('close', terminate)
   }
 
-  function terminate () {
+  function terminate() {
     console.log('Goodbye!')
     process.exit(0)
   }
